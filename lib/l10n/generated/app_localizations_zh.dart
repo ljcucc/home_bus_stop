@@ -85,16 +85,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get darkMode => '深色模式';
+  String get settings => '設定';
 
   @override
-  String get lightMode => '淺色模式';
+  String get themeMode => '主題模式';
 
   @override
-  String get fullscreen => '全螢幕';
+  String get systemTheme => '系統預設';
 
   @override
-  String get exitFullscreen => '離開全螢幕';
+  String get lightTheme => '淺色模式';
+
+  @override
+  String get darkTheme => '深色模式';
 
   @override
   String get minute => '分';

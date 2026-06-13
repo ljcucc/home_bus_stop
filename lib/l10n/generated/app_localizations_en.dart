@@ -86,16 +86,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get darkMode => 'Dark mode';
+  String get settings => 'Settings';
 
   @override
-  String get lightMode => 'Light mode';
+  String get themeMode => 'Theme';
 
   @override
-  String get fullscreen => 'Fullscreen';
+  String get systemTheme => 'System default';
 
   @override
-  String get exitFullscreen => 'Exit fullscreen';
+  String get lightTheme => 'Light';
+
+  @override
+  String get darkTheme => 'Dark';
 
   @override
   String get minute => 'min';

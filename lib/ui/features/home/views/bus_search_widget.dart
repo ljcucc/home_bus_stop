@@ -147,31 +147,36 @@ class _BusSearchWidgetState extends State<BusSearchWidget> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: _suggestions.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final s = _suggestions[index];
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    s.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  trailing: s.distanceText != null
-                      ? Text(
-                          s.distanceText!,
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        )
-                      : null,
-                  onTap: () => _selectStop(s),
-                );
-              },
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.4,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: _suggestions.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final s = _suggestions[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      s.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: s.distanceText != null
+                        ? Text(
+                            s.distanceText!,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          )
+                        : null,
+                    onTap: () => _selectStop(s),
+                  );
+                },
+              ),
             ),
           ),
       ],

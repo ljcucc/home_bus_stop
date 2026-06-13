@@ -10,7 +10,6 @@ class BusStopCard extends StatefulWidget {
   final int refreshKey;
   final double? myLat;
   final double? myLon;
-  final bool isFullscreen;
   final VoidCallback onRemove;
   final ValueChanged<String> onError;
 
@@ -21,7 +20,6 @@ class BusStopCard extends StatefulWidget {
     required this.refreshKey,
     this.myLat,
     this.myLon,
-    required this.isFullscreen,
     required this.onRemove,
     required this.onError,
   });
@@ -35,6 +33,7 @@ class _BusStopCardState extends State<BusStopCard> {
 
   List<StopSide> _sides = [];
   bool _loading = true;
+  bool _isFirstLoad = true;
   String? _errorMessage;
 
   @override
@@ -54,10 +53,9 @@ class _BusStopCardState extends State<BusStopCard> {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-    });
+    if (_isFirstLoad) {
+      setState(() { _loading = true; _errorMessage = null; });
+    }
     try {
       final data = await _repository.fetchStopData(
         widget.stopName,
@@ -69,12 +67,14 @@ class _BusStopCardState extends State<BusStopCard> {
         setState(() {
           _sides = data;
           _loading = false;
+          _isFirstLoad = false;
         });
       } else {
         setState(() {
           _sides = [];
           _errorMessage = '查無此站牌資料';
           _loading = false;
+          _isFirstLoad = false;
         });
       }
     } catch (e) {
@@ -83,6 +83,7 @@ class _BusStopCardState extends State<BusStopCard> {
         _sides = [];
         _errorMessage = '資料讀取失敗';
         _loading = false;
+        _isFirstLoad = false;
       });
       widget.onError('${widget.stopName}: 資料讀取失敗');
     }
@@ -120,7 +121,7 @@ class _BusStopCardState extends State<BusStopCard> {
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: widget.isFullscreen ? 0 : 2,
+      elevation: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -149,7 +150,7 @@ class _BusStopCardState extends State<BusStopCard> {
   }
 
   Widget _buildBody(ThemeData theme) {
-    if (_loading) {
+    if (_loading && _isFirstLoad) {
       return const Padding(
         padding: EdgeInsets.all(32),
         child: Center(child: CircularProgressIndicator()),

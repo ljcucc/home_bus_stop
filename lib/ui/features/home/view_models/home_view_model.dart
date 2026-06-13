@@ -13,8 +13,7 @@ class HomeViewModel extends ChangeNotifier {
 
   List<String> _stops;
   bool _hideNobus;
-  bool _isDark;
-  bool _isFullscreen = false;
+  String _themeMode;
   double? _myLat;
   double? _myLon;
   bool _isTracking = false;
@@ -33,12 +32,11 @@ class HomeViewModel extends ChangeNotifier {
     required List<String> initialStops,
   })  : _stops = initialStops,
         _hideNobus = _settingsRepo.hideNobus,
-        _isDark = _settingsRepo.isDark;
+        _themeMode = _settingsRepo.themeMode;
 
   List<String> get stops => _stops;
   bool get hideNobus => _hideNobus;
-  bool get isDark => _isDark;
-  bool get isFullscreen => _isFullscreen;
+  String get themeMode => _themeMode;
   double? get myLat => _myLat;
   double? get myLon => _myLon;
   bool get isTracking => _isTracking;
@@ -113,20 +111,15 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleTheme() async {
-    _isDark = !_isDark;
-    await _settingsRepo.setDarkMode(_isDark);
+  void setThemeMode(String mode) async {
+    _themeMode = mode;
+    await _settingsRepo.setThemeMode(mode);
     notifyListeners();
   }
 
   void toggleHideNobus() async {
     _hideNobus = !_hideNobus;
     await _settingsRepo.setHideNobus(_hideNobus);
-    notifyListeners();
-  }
-
-  void toggleFullscreen() {
-    _isFullscreen = !_isFullscreen;
     notifyListeners();
   }
 

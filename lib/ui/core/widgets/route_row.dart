@@ -10,6 +10,7 @@ class RouteRow extends StatelessWidget {
     'arriving': Color(0xFF4CAF50),
     'approaching': Color(0xFFFF9800),
     'coming': Color(0xFF42A5F5),
+    'enroute': Color(0xFF78909C),
   };
 
   @override

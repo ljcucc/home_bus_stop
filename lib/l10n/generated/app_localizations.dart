@@ -230,29 +230,35 @@ abstract class AppLocalizations {
   /// **'Fixed ({lat}, {lon})'**
   String locationFixed(Object lat, Object lon);
 
-  /// No description provided for @darkMode.
+  /// No description provided for @settings.
   ///
   /// In en, this message translates to:
-  /// **'Dark mode'**
-  String get darkMode;
+  /// **'Settings'**
+  String get settings;
 
-  /// No description provided for @lightMode.
+  /// No description provided for @themeMode.
   ///
   /// In en, this message translates to:
-  /// **'Light mode'**
-  String get lightMode;
+  /// **'Theme'**
+  String get themeMode;
 
-  /// No description provided for @fullscreen.
+  /// No description provided for @systemTheme.
   ///
   /// In en, this message translates to:
-  /// **'Fullscreen'**
-  String get fullscreen;
+  /// **'System default'**
+  String get systemTheme;
 
-  /// No description provided for @exitFullscreen.
+  /// No description provided for @lightTheme.
   ///
   /// In en, this message translates to:
-  /// **'Exit fullscreen'**
-  String get exitFullscreen;
+  /// **'Light'**
+  String get lightTheme;
+
+  /// No description provided for @darkTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get darkTheme;
 
   /// No description provided for @minute.
   ///

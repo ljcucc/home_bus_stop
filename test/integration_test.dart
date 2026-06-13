@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:tainan_bus_sign/data/models/api_suggestion.dart';
@@ -85,9 +86,12 @@ Future<StorageService> createTestStorage() async {
 }
 
 Widget buildTestApp(HomeViewModel vm) {
-  return MaterialApp(
-    theme: AppTheme.light,
-    home: HomeScreen(viewModel: vm),
+  return ChangeNotifierProvider.value(
+    value: vm,
+    child: MaterialApp(
+      theme: AppTheme.light,
+      home: const HomeScreen(),
+    ),
   );
 }
 
@@ -120,7 +124,6 @@ void main() {
       await tester.pump();
 
       expect(find.text('大台南公車立牌'), findsOneWidget);
-      expect(find.text('我的站牌'), findsOneWidget);
       expect(find.text('等待更新…'), findsOneWidget);
       expect(
         find.text('在上方搜尋站牌名稱加入\n即會顯示即時到站資訊'),
@@ -143,24 +146,18 @@ void main() {
       await tester.pumpWidget(buildTestApp(vm));
       await tester.pump();
 
-      // 輸入搜尋關鍵字
       await tester.tap(find.byType(TextField));
       await tester.pump();
       await tester.enterText(find.byType(TextField), '火車站');
       await tester.pump(const Duration(milliseconds: 600));
 
-      // 等待搜尋結果出現
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(ListTile), findsAtLeast(1));
 
-      // 點擊第一個結果
       await tester.tap(find.byType(ListTile).first);
       await tester.pump();
 
-      // 驗證站牌已加入 (注意：BusStopCard 內部自己 new BusApiService，
-      // 在測試環境中 HTTP 請求會被攔截回傳 400，但站牌名稱仍應顯示)
       expect(find.text('臺南火車站'), findsOneWidget);
-      expect(find.byType(Card), findsOneWidget);
 
       vm.dispose();
     });
@@ -179,29 +176,24 @@ void main() {
 
       expect(find.text('臺南火車站'), findsOneWidget);
 
-      // 搜尋同一個站牌
       await tester.tap(find.byType(TextField));
       await tester.pump();
       await tester.enterText(find.byType(TextField), '火車站');
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 300));
 
-      // 點擊加入
       await tester.tap(find.byType(ListTile).first);
       await tester.pump();
 
-      // 驗證錯誤訊息
       expect(find.text('「臺南火車站」已在清單中'), findsOneWidget);
 
-      // 讓 3 秒計時器觸發
       await tester.pump(const Duration(seconds: 3));
-      // 錯誤訊息應消失
       expect(find.text('「臺南火車站」已在清單中'), findsNothing);
 
       vm.dispose();
     });
 
-    testWidgets('切換深色模式', (tester) async {
+    testWidgets('切換主題模式 — 開啟設定選單並選取深色模式', (tester) async {
       final vm = HomeViewModel(
         busRepo: busRepo,
         settingsRepo: settingsRepo,
@@ -213,14 +205,17 @@ void main() {
       await tester.pumpWidget(buildTestApp(vm));
       await tester.pump();
 
-      expect(find.byIcon(Icons.dark_mode), findsOneWidget);
-      expect(find.byIcon(Icons.light_mode), findsNothing);
-
-      await tester.tap(find.byIcon(Icons.dark_mode));
+      await tester.tap(find.byIcon(Icons.settings));
       await tester.pump();
 
-      expect(find.byIcon(Icons.light_mode), findsOneWidget);
-      expect(find.byIcon(Icons.dark_mode), findsNothing);
+      expect(find.text('系統預設'), findsOneWidget);
+      expect(find.text('淺色模式'), findsOneWidget);
+      expect(find.text('深色模式'), findsOneWidget);
+
+      await tester.tap(find.text('深色模式'));
+      await tester.pump();
+
+      expect(vm.themeMode, 'dark');
 
       vm.dispose();
     });
@@ -240,18 +235,14 @@ void main() {
       await tester.pumpWidget(buildTestApp(vm));
       await tester.pump();
 
-      // 點擊定位按鈕
       await tester.tap(find.byIcon(Icons.location_on_outlined));
       await tester.pump();
 
-      // 顯示定位中
       expect(find.text('定位中…'), findsOneWidget);
 
-      // 讓定位完成
       pause.complete();
       await tester.pump();
 
-      // 顯示已定位
       expect(find.textContaining('已定位'), findsOneWidget);
 
       vm.dispose();

@@ -102,10 +102,17 @@ class BusRepository {
 
   static _RouteClassified _classifyTime(String timeStr) {
     final timeNum = int.tryParse(timeStr);
-    if (timeStr == '未發車' || timeStr == '已發車' || timeNum == null) {
+    if (timeStr == '未發車') {
       return _RouteClassified(
         label: timeStr,
         cls: 'nobus',
+        numeric: double.infinity,
+      );
+    }
+    if (timeStr == '已發車' || timeNum == null) {
+      return _RouteClassified(
+        label: timeStr,
+        cls: 'enroute',
         numeric: double.infinity,
       );
     }
@@ -134,7 +141,7 @@ class BusRepository {
   }
 
   static int _compareRoutes(RouteInfo a, RouteInfo b) {
-    const order = {'arriving': 0, 'approaching': 1, 'coming': 2, 'nobus': 3};
+    const order = {'arriving': 0, 'approaching': 1, 'coming': 2, 'enroute': 3, 'nobus': 4};
     final ao = order[a.timeClass] ?? 99;
     final bo = order[b.timeClass] ?? 99;
     if (ao != bo) return ao.compareTo(bo);

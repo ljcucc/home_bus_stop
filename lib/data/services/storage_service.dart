@@ -11,7 +11,7 @@ class StorageService {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  String getTheme() => _prefs?.getString(_themeKey) ?? 'light';
+  String getTheme() => _prefs?.getString(_themeKey) ?? 'system';
 
   Future<void> setTheme(String value) => _prefs!.setString(_themeKey, value);
 

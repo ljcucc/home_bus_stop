@@ -5,11 +5,10 @@ class SettingsRepository {
 
   SettingsRepository(this._storage);
 
-  bool get isDark => _storage.getTheme() == 'dark';
+  String get themeMode => _storage.getTheme();
   bool get hideNobus => _storage.getHideNobus();
 
-  Future<void> setDarkMode(bool value) =>
-      _storage.setTheme(value ? 'dark' : 'light');
+  Future<void> setThemeMode(String value) => _storage.setTheme(value);
 
   Future<void> setHideNobus(bool value) => _storage.setHideNobus(value);
 }

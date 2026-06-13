@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'data/services/bus_api_service.dart';
 import 'data/services/storage_service.dart';
@@ -50,6 +51,17 @@ class _TainanBusSignAppState extends State<TainanBusSignApp> {
     );
   }
 
+  ThemeMode _resolveThemeMode(String mode) {
+    switch (mode) {
+      case 'dark':
+        return ThemeMode.dark;
+      case 'light':
+        return ThemeMode.light;
+      default:
+        return ThemeMode.system;
+    }
+  }
+
   @override
   void dispose() {
     _homeVM.dispose();
@@ -58,23 +70,30 @@ class _TainanBusSignAppState extends State<TainanBusSignApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '大台南公車立牌',
-      debugShowCheckedModeBanner: false,
-      themeMode: _homeVM.isDark ? ThemeMode.dark : ThemeMode.light,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('zh'),
-        Locale('en'),
-      ],
-      home: HomeScreen(viewModel: _homeVM),
+    return ChangeNotifierProvider.value(
+      value: _homeVM,
+      child: Consumer<HomeViewModel>(
+        builder: (context, vm, child) {
+          return MaterialApp(
+            title: '大台南公車立牌',
+            debugShowCheckedModeBanner: false,
+            themeMode: _resolveThemeMode(vm.themeMode),
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('zh'),
+              Locale('en'),
+            ],
+            home: const HomeScreen(),
+          );
+        },
+      ),
     );
   }
 }

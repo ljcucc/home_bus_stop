@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../view_models/home_view_model.dart';
 import '../../../core/widgets/bus_stop_card.dart';
 import 'bus_search_widget.dart';
 
 class HomeScreen extends StatefulWidget {
-  final HomeViewModel viewModel;
-
-  const HomeScreen({super.key, required this.viewModel});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -19,26 +18,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    widget.viewModel.addListener(_onViewModelChanged);
-    widget.viewModel.startClock();
-    if (widget.viewModel.stops.isNotEmpty) {
-      widget.viewModel.startAutoRefresh();
+    final vm = context.read<HomeViewModel>();
+    vm.startClock();
+    if (vm.stops.isNotEmpty) {
+      vm.startAutoRefresh();
     }
   }
 
   @override
   void dispose() {
     _tabController?.dispose();
-    widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
   }
 
-  void _onViewModelChanged() {
-    if (mounted) setState(() {});
-  }
-
   void _syncTabController() {
-    final stopCount = widget.viewModel.stops.length;
+    final stopCount = context.read<HomeViewModel>().stops.length;
     if (stopCount == 0) {
       _tabController?.dispose();
       _tabController = null;
@@ -57,14 +51,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _onAddStop(String name) {
     _justAddedStop = true;
-    widget.viewModel.addStop(name);
+    context.read<HomeViewModel>().addStop(name);
   }
 
   @override
   Widget build(BuildContext context) {
-    final vm = widget.viewModel;
+    final vm = context.watch<HomeViewModel>();
     final theme = Theme.of(context);
-    final hasStops = vm.stops.isNotEmpty;
 
     _syncTabController();
 
@@ -92,12 +85,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         actions: [
           IconButton(
-            icon: Icon(vm.isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: vm.toggleTheme,
-          ),
-          IconButton(
-            icon: Icon(vm.isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
-            onPressed: vm.toggleFullscreen,
+            icon: const Icon(Icons.settings),
+            onPressed: () => _showSettingsSheet(context),
           ),
         ],
       ),
@@ -110,32 +99,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Column(
       children: [
-        if (!vm.isFullscreen) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: BusSearchWidget(
+            busRepo: vm.busRepo,
+            myLat: vm.myLat,
+            myLon: vm.myLon,
+            onAddStop: _onAddStop,
+            onLocate: vm.startLocation,
+          ),
+        ),
+        if (vm.geoStatusText.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: BusSearchWidget(
-              busRepo: vm.busRepo,
-              myLat: vm.myLat,
-              myLon: vm.myLon,
-              onAddStop: _onAddStop,
-              onLocate: vm.startLocation,
+            padding: const EdgeInsets.only(left: 16, top: 4),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, size: 14, color: Colors.green),
+                const SizedBox(width: 4),
+                Text(
+                  vm.geoStatusText,
+                  style: const TextStyle(fontSize: 12, color: Colors.green),
+                ),
+              ],
             ),
           ),
-          if (vm.geoStatusText.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 16, top: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.green),
-                  const SizedBox(width: 4),
-                  Text(
-                    vm.geoStatusText,
-                    style: const TextStyle(fontSize: 12, color: Colors.green),
-                  ),
-                ],
-              ),
-            ),
-        ],
         if (hasStops && _tabController != null) ...[
           TabBar(
             controller: _tabController,
@@ -220,7 +207,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     refreshKey: vm.refreshKey,
                     myLat: vm.myLat,
                     myLon: vm.myLon,
-                    isFullscreen: vm.isFullscreen,
                     onRemove: () => vm.removeStop(stopName),
                     onError: (msg) {},
                   ),
@@ -265,6 +251,76 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showSettingsSheet(BuildContext context) {
+    final vm = context.read<HomeViewModel>();
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                '設定',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '主題模式',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _ThemeOption(
+                icon: Icons.brightness_auto,
+                label: '系統預設',
+                selected: vm.themeMode == 'system',
+                onTap: () {
+                  vm.setThemeMode('system');
+                  Navigator.pop(ctx);
+                },
+              ),
+              _ThemeOption(
+                icon: Icons.light_mode,
+                label: '淺色模式',
+                selected: vm.themeMode == 'light',
+                onTap: () {
+                  vm.setThemeMode('light');
+                  Navigator.pop(ctx);
+                },
+              ),
+              _ThemeOption(
+                icon: Icons.dark_mode,
+                label: '深色模式',
+                selected: vm.themeMode == 'dark',
+                onTap: () {
+                  vm.setThemeMode('dark');
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   String _formatDateTime(DateTime dt) {
     final weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     return '${dt.year}/${_pad(dt.month)}/${_pad(dt.day)} (${weekdays[dt.weekday % 7]})  '
@@ -272,4 +328,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
+}
+
+class _ThemeOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemeOption({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      color: selected ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: selected
+            ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
+            : BorderSide.none,
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: Icon(icon, color: selected ? theme.colorScheme.primary : null),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        trailing: selected ? Icon(Icons.check, color: theme.colorScheme.primary) : null,
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
 }
