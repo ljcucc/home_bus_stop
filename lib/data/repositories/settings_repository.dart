@@ -7,8 +7,12 @@ class SettingsRepository {
 
   String get themeMode => _storage.getTheme();
   bool get hideNobus => _storage.getHideNobus();
+  bool get useDynamicColor => _storage.getUseDynamicColor();
 
   Future<void> setThemeMode(String value) => _storage.setTheme(value);
 
   Future<void> setHideNobus(bool value) => _storage.setHideNobus(value);
+
+  Future<void> setUseDynamicColor(bool value) =>
+      _storage.setUseDynamicColor(value);
 }

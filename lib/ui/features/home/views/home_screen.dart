@@ -1,8 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../view_models/home_view_model.dart';
-import '../../../core/widgets/bus_stop_card.dart';
-import 'bus_search_widget.dart';
+import '../../../core/widgets/bus_stop_side_card.dart';
+import '../../../../domain/models/bus_suggestion.dart';
+
+String _shortDir(String dirLabel) {
+  if (dirLabel.startsWith('往程')) return '往程';
+  if (dirLabel.startsWith('返程')) return '返程';
+  return dirLabel;
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +21,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   TabController? _tabController;
   bool _justAddedStop = false;
+  int _prevVersion = -1;
+  bool _editingStops = false;
+
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<BusSuggestion> _suggestions = [];
+  bool _showSuggestions = false;
+  bool _searching = false;
+  Timer? _debounceTimer;
+
+  bool _hasLocation(HomeViewModel vm) => vm.myLat != null && vm.myLon != null;
 
   @override
   void initState() {
@@ -22,132 +40,409 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     vm.startClock();
     if (vm.stops.isNotEmpty) {
       vm.startAutoRefresh();
+      vm.refresh();
     }
   }
 
   @override
   void dispose() {
     _tabController?.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
   void _syncTabController() {
-    final stopCount = context.read<HomeViewModel>().stops.length;
-    if (stopCount == 0) {
+    final vm = context.read<HomeViewModel>();
+    final tabs = vm.selectedStopTabs;
+    final tabCount = tabs.length;
+    if (tabCount == 0) {
       _tabController?.dispose();
       _tabController = null;
-    } else if (_tabController == null || _tabController!.length != stopCount) {
-      final prevIdx = _tabController?.index ?? 0;
-      final newIdx = _justAddedStop ? stopCount - 1 : prevIdx.clamp(0, stopCount - 1);
-      _justAddedStop = false;
+    } else if (_tabController == null ||
+        _tabController!.length != tabCount ||
+        _prevVersion != vm.selectedStopVersion) {
+      _prevVersion = vm.selectedStopVersion;
       _tabController?.dispose();
       _tabController = TabController(
-        length: stopCount,
+        length: tabCount,
         vsync: this,
-        initialIndex: newIdx,
+        initialIndex: _justAddedStop ? tabCount - 1 : 0,
       );
+      _justAddedStop = false;
     }
   }
 
-  void _onAddStop(String name) {
+  void _onAddStop(String name) async {
     _justAddedStop = true;
-    context.read<HomeViewModel>().addStop(name);
+    await context.read<HomeViewModel>().addStop(name);
+  }
+
+  void _onSearchInput(String val) {
+    _debounceTimer?.cancel();
+    if (val.trim().isEmpty) {
+      setState(() => _showSuggestions = false);
+      return;
+    }
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      _doSearch(val.trim());
+    });
+  }
+
+  Future<void> _doSearch(String keyword) async {
+    final vm = context.read<HomeViewModel>();
+    setState(() => _searching = true);
+    try {
+      final results = await vm.busRepo.searchStops(
+        keyword,
+        myLat: vm.myLat,
+        myLon: vm.myLon,
+      );
+      if (!mounted) return;
+      setState(() {
+        _suggestions = results;
+        _showSuggestions = results.isNotEmpty;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _suggestions = [];
+        _showSuggestions = false;
+      });
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  void _selectSuggestion(BusSuggestion s) {
+    _onAddStop(s.name);
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _suggestions = [];
+      _showSuggestions = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<HomeViewModel>();
     final theme = Theme.of(context);
-
     _syncTabController();
+    final tabs = vm.selectedStopTabs;
+    final hasTabs = tabs.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '大台南公車立牌',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: theme.colorScheme.primary,
-                fontSize: 18,
-              ),
-            ),
-            Text(
-              _formatDateTime(vm.currentTime),
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => _showSettingsSheet(context),
-          ),
-        ],
-      ),
-      body: _buildBody(vm, theme),
-    );
-  }
-
-  Widget _buildBody(HomeViewModel vm, ThemeData theme) {
-    final hasStops = vm.stops.isNotEmpty;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: BusSearchWidget(
-            busRepo: vm.busRepo,
-            myLat: vm.myLat,
-            myLon: vm.myLon,
-            onAddStop: _onAddStop,
-            onLocate: vm.startLocation,
-          ),
-        ),
-        if (vm.geoStatusText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 16, top: 4),
-            child: Row(
-              children: [
-                Icon(Icons.location_on, size: 14, color: Colors.green),
-                const SizedBox(width: 4),
-                Text(
-                  vm.geoStatusText,
-                  style: const TextStyle(fontSize: 12, color: Colors.green),
-                ),
-              ],
-            ),
-          ),
-        if (hasStops && _tabController != null) ...[
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: vm.stops.map((name) {
-              return Tab(
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.directions_bus, size: 16, color: theme.colorScheme.primary),
-                    const SizedBox(width: 4),
-                    Text(name, style: const TextStyle(fontSize: 13)),
-                    const SizedBox(width: 2),
-                    GestureDetector(
-                      onTap: () => vm.removeStop(name),
-                      child: Icon(Icons.close, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    Icon(Icons.directions_bus, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '已開啟站牌',
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (vm.stops.isNotEmpty)
+                      IconButton(
+                        icon: Icon(
+                          _editingStops ? Icons.check : Icons.edit,
+                          size: 20,
+                        ),
+                        onPressed: () => setState(() => _editingStops = !_editingStops),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  _formatDateTime(vm.currentTime),
+                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: vm.stops.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          '尚未加入站牌',
+                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      )
+                    : _editingStops
+                        ? ReorderableListView.builder(
+                            itemCount: vm.stops.length,
+                            onReorderItem: vm.reorderStop,
+                            proxyDecorator: (child, index, animation) {
+                              return Material(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                                elevation: 4,
+                                child: child,
+                              );
+                            },
+                            itemBuilder: (context, index) {
+                              final name = vm.stops[index];
+                              final isSelected = vm.selectedStop == name;
+                              return ListTile(
+                                key: ValueKey(name),
+                                leading: Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked,
+                                  color: isSelected ? theme.colorScheme.primary : null,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                dense: true,
+                                onTap: () {
+                                  vm.selectStop(name);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          )
+                        : ListView.builder(
+                            itemCount: vm.stops.length,
+                            itemBuilder: (context, index) {
+                              final name = vm.stops[index];
+                              final isSelected = vm.selectedStop == name;
+                              return ListTile(
+                                leading: Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked,
+                                  color: isSelected ? theme.colorScheme.primary : null,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: Icon(Icons.close, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                                  onPressed: () => vm.removeStop(name),
+                                ),
+                                dense: true,
+                                onTap: () {
+                                  vm.selectStop(name);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          ),
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Text(
+                  '設定',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              _DrawerThemeOption(
+                icon: Icons.brightness_auto,
+                label: '系統預設',
+                selected: vm.themeMode == 'system',
+                onTap: () {
+                  vm.setThemeMode('system');
+                  Navigator.pop(context);
+                },
+              ),
+              _DrawerThemeOption(
+                icon: Icons.light_mode,
+                label: '淺色模式',
+                selected: vm.themeMode == 'light',
+                onTap: () {
+                  vm.setThemeMode('light');
+                  Navigator.pop(context);
+                },
+              ),
+              _DrawerThemeOption(
+                icon: Icons.dark_mode,
+                label: '深色模式',
+                selected: vm.themeMode == 'dark',
+                onTap: () {
+                  vm.setThemeMode('dark');
+                  Navigator.pop(context);
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.palette_outlined, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '動態色彩',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: vm.useDynamicColor,
+                      onChanged: (_) {
+                        vm.toggleUseDynamicColor();
+                        Navigator.pop(context);
+                      },
                     ),
                   ],
                 ),
-              );
-            }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
           ),
+        ),
+      ),
+      appBar: AppBar(
+        title: SizedBox(
+          height: 40,
+          child: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            onChanged: _onSearchInput,
+            decoration: InputDecoration(
+              hintText: '搜尋站牌名稱…',
+              prefixIcon: Icon(Icons.search, size: 20),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_searching)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      _hasLocation(vm) ? Icons.location_on : Icons.location_on_outlined,
+                      color: _hasLocation(vm) ? Colors.green : null,
+                      size: 20,
+                    ),
+                    onPressed: vm.startLocation,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              filled: true,
+              fillColor: theme.colorScheme.surfaceContainerHighest,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              isDense: true,
+            ),
+          ),
+        ),
+        bottom: hasTabs && _tabController != null
+            ? TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: tabs.map((t) {
+                  return Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.directions_bus, size: 16, color: theme.colorScheme.primary),
+                        const SizedBox(width: 2),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.side.locId, style: const TextStyle(fontSize: 13)),
+                            Text(
+                              _shortDir(t.side.dirLabel),
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              )
+            : null,
+      ),
+      body: _buildBody(vm, theme, tabs),
+    );
+  }
+
+  Widget _buildBody(HomeViewModel vm, ThemeData theme, List<SideTab> tabs) {
+    final hasTabs = tabs.isNotEmpty;
+
+    return Column(
+      children: [
+        if (_showSuggestions)
+          Card(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.4,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: _suggestions.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final s = _suggestions[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      s.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: s.distanceText != null
+                        ? Text(
+                            s.distanceText!,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          )
+                        : null,
+                    onTap: () => _selectSuggestion(s),
+                  );
+                },
+              ),
+            ),
+          ),
+        if (hasTabs && _tabController != null) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 FilterChip(
@@ -195,25 +490,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: vm.stops.map((stopName) {
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: BusStopCard(
-                    stopName: stopName,
-                    hideNobus: vm.hideNobus,
-                    refreshKey: vm.refreshKey,
-                    myLat: vm.myLat,
-                    myLon: vm.myLon,
-                    onRemove: () => vm.removeStop(stopName),
-                    onError: (msg) {},
-                  ),
-                );
-              }).toList(),
+          if (vm.isLoading)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: tabs.map((t) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: BusStopSideCard(
+                      stopName: t.stopName,
+                      side: t.side,
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
@@ -229,95 +525,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ] else ...[
           Expanded(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('🚌', style: TextStyle(fontSize: 48)),
-                  const SizedBox(height: 16),
-                  Text(
-                    '在上方搜尋站牌名稱加入\n即會顯示即時到站資訊',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 13,
+              child: vm.isLoading
+                  ? const CircularProgressIndicator()
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('🚌', style: TextStyle(fontSize: 48)),
+                        const SizedBox(height: 16),
+                        Text(
+                          '在上方搜尋站牌名稱加入\n即會顯示即時到站資訊',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
       ],
-    );
-  }
-
-  void _showSettingsSheet(BuildContext context) {
-    final vm = context.read<HomeViewModel>();
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text(
-                '設定',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '主題模式',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _ThemeOption(
-                icon: Icons.brightness_auto,
-                label: '系統預設',
-                selected: vm.themeMode == 'system',
-                onTap: () {
-                  vm.setThemeMode('system');
-                  Navigator.pop(ctx);
-                },
-              ),
-              _ThemeOption(
-                icon: Icons.light_mode,
-                label: '淺色模式',
-                selected: vm.themeMode == 'light',
-                onTap: () {
-                  vm.setThemeMode('light');
-                  Navigator.pop(ctx);
-                },
-              ),
-              _ThemeOption(
-                icon: Icons.dark_mode,
-                label: '深色模式',
-                selected: vm.themeMode == 'dark',
-                onTap: () {
-                  vm.setThemeMode('dark');
-                  Navigator.pop(ctx);
-                },
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -330,13 +558,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _pad(int n) => n.toString().padLeft(2, '0');
 }
 
-class _ThemeOption extends StatelessWidget {
+class _DrawerThemeOption extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _ThemeOption({
+  const _DrawerThemeOption({
     required this.icon,
     required this.label,
     required this.selected,
@@ -346,28 +574,15 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      color: selected ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: selected
-            ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
-            : BorderSide.none,
+    return ListTile(
+      leading: Icon(icon, color: selected ? theme.colorScheme.primary : null),
+      title: Text(
+        label,
+        style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal),
       ),
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: Icon(icon, color: selected ? theme.colorScheme.primary : null),
-        title: Text(
-          label,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        trailing: selected ? Icon(Icons.check, color: theme.colorScheme.primary) : null,
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+      trailing: selected ? Icon(Icons.check, color: theme.colorScheme.primary) : null,
+      onTap: onTap,
+      dense: true,
     );
   }
 }

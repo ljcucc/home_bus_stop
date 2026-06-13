@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:provider/provider.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'data/services/bus_api_service.dart';
@@ -70,30 +71,38 @@ class _TainanBusSignAppState extends State<TainanBusSignApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: _homeVM,
-      child: Consumer<HomeViewModel>(
-        builder: (context, vm, child) {
-          return MaterialApp(
-            title: '大台南公車立牌',
-            debugShowCheckedModeBanner: false,
-            themeMode: _resolveThemeMode(vm.themeMode),
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: const [
-              Locale('zh'),
-              Locale('en'),
-            ],
-            home: const HomeScreen(),
-          );
-        },
-      ),
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        return ChangeNotifierProvider.value(
+          value: _homeVM,
+          child: Consumer<HomeViewModel>(
+            builder: (context, vm, child) {
+              final lightScheme =
+                  vm.useDynamicColor ? lightDynamic : null;
+              final darkScheme =
+                  vm.useDynamicColor ? darkDynamic : null;
+              return MaterialApp(
+                title: '大台南公車立牌',
+                debugShowCheckedModeBanner: false,
+                themeMode: _resolveThemeMode(vm.themeMode),
+                theme: AppTheme.light(dynamicColorScheme: lightScheme),
+                darkTheme: AppTheme.dark(dynamicColorScheme: darkScheme),
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                supportedLocales: const [
+                  Locale('zh'),
+                  Locale('en'),
+                ],
+                home: const HomeScreen(),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

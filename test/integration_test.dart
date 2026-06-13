@@ -89,7 +89,7 @@ Widget buildTestApp(HomeViewModel vm) {
   return ChangeNotifierProvider.value(
     value: vm,
     child: MaterialApp(
-      theme: AppTheme.light,
+      theme: AppTheme.light(),
       home: const HomeScreen(),
     ),
   );
