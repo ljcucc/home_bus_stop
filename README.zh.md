@@ -1,6 +1,6 @@
 # 大台南公車立牌
 
-台南市公車即時到站資訊顯示面板。使用 Vue 3 與 Vuetify 建置。
+台南市公車即時到站資訊顯示面板。使用 Flutter 建置。
 
 ## 功能
 
@@ -10,14 +10,24 @@
 - **隱藏未發車** – 一鍵切換，只顯示營運中路線
 - **全螢幕模式** – 轉換為專用資訊看板
 - **深色 / 淺色主題** – 支援明暗主題切換
+- **自動重新整理** – 每 30 秒自動更新到站資料
+- **多國語言** – 支援繁體中文與英文
 
-## 使用方式
+## 螢幕截圖
+
+<img src="screenshot.png" width="360" alt="App Screenshot"/>
+
+## 開始使用
 
 ```bash
-npm install
-npm run dev      # 開發伺服器
-npm run build    # 正式構建
-npm run preview  # 預覽構建結果
+flutter pub get
+flutter run
+```
+
+## 測試
+
+```bash
+flutter test
 ```
 
 ## 資料來源
@@ -26,10 +36,13 @@ npm run preview  # 預覽構建結果
 
 ## 技術棧
 
-- Vue 3（Composition API）
-- Vuetify 3
-- Vite
-- 大台南公車 API v2
+- Flutter / Dart
+- MVVM + Repository + Service 架構
+- go_router（導航）
+- http（API 客戶端）
+- shared_preferences（本地儲存）
+- geolocator（GPS 定位）
+- flutter_localizations（多國語系）
 
 ## 授權
 
